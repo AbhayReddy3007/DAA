@@ -3,78 +3,86 @@ import torch as tr
 import pandas as pd
 import tensorflow as tf
 
-def fx():
-
+def load_data():
     data = pd.read_csv(r"Bank_Personal_Loan_Modelling.csv")
-
     data.drop(['ID'] , axis = 1 , inplace = True)
     x = data.drop(['Personal Loan'] , axis = 1).values
-    x = tr.tensor(x , dtype = tr.float64)
-
     y = data['Personal Loan'].values
+    x = tr.tensor(x , dtype = tr.float64)
     y = tr.tensor(y , dtype=  tr.float64)
     y = y.to(tr.float64)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, random_state=42, test_size=0.25)
+    return x_train, x_test, y_train, y_test
 
-    from sklearn.model_selection import chain_test_split
-    x_chain , x_test , y_chain , y_test = chain_test_split(x , y , random_state = 42 , test_size = 0.25)
+class NeuralNetwork(tr.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = tr.nn.Linear(12, 10)
+        self.linear2 = tr.nn.Linear(10, 20)
+        self.linear3 = tr.nn.Linear(20 , 1)
+        self.relu = tr.nn.ReLU()
+        self.sigmoid = tr.nn.Sigmoid()
 
-    return x_chain , x_test , y_chain , y_test
+    def forward(self, x):
+        x = self.linear1(x.float())
+        x = self.relu(x.float())
+        x = self.linear2(x.float())
+        x = self.relu(x.float())
+        x = self.linear3(x.float())
+        x = self.sigmoid(x.float())
+        return x
 
-class class_n(tr.class_n.Module):
+model = NeuralNetwork()
+loss_function = tr.nn.MSELoss()
 
-    def init(self):
+class CulturalOptimizer:
+    def __init__(self, model, population_size, mutation_rate, decay_rate, inputs, labels):
+        self.model = model
+        self.population_size = population_size
+        self.mutation_rate = mutation_rate
+        self.population = self.init_population()
+        self.decay_rate = decay_rate
+        self.inputs = inputs
+        self.labels = labels
+        self.culture = None
 
-        super().init()
+    def init_population(self):
+        population = []
+        for i in range(self.population_size):
+            weights = []
+            for weight in self.model.parameters():
+                weights.append(weight.data.numpy())
+            population.append(weights)
+        return population
 
-        self.linear1 = tr.class_n.Linear(13, 9)
-        self.linear2 = tr.class_n.Linear(15, 25)
-        self.linear3 = tr.class_n.Linear(25 , 1)
-        self.relu = tr.class_n.ReLU()
-        self.sigmoid = tr.class_n.Sigmoid()
+    def selection(self, fitness_scores):
+        cumulative_scores = np.cumsum(fitness_scores)
+        total_score = np.sum(fitness_scores)
+        rand = np.random.uniform(0, total_score)
+        selected_index = np.searchsorted(cumulative_scores, rand)
+        return selected_index
 
-model = class_n()
-loss_fx = tr.class_n.MSELoss()
+    def crossover(self, male, female):
+        random_crossover = np.random.randint(1, len(male))
+        child1 = female[:random_crossover] + male[random_crossover:]
+        child2 = female[:random_crossover] + male[random_crossover:]
+        return child1, child2
 
-class ACO:
-    def init(self, no_ants, epochs,   first_ph, rate_of_decay , size  , inputs , labels):
+    def decay_mutation_rate(self):
+        self.mutation_rate -= (self.decay_rate * self.mutation_rate)
 
-        self.no_ants = no_ants; self.epochs = epochs
-        self.first_ph = first_ph
-        self.rate_of_decay = rate_of_decay ; self.size = size
-        self.pheromone = np.full((2, self.size, 1), self.pheromone_init)
-        self.inputs = inputs ;  self.labels = labels
-        
-    def fun(self, self.inputs , self.labels):
-        w = np.zeros((self.inputs, self.labels))
-        for i in range(inputs):
-            for j in range(output):
-                prob = self.get_transition_prob(i, j)
-                w[i][j] = np.random.normal(loc=prob, scale=0.5)
-        return w
-    
-    def update_weight(self):
-        best_weights = self.population[np.argmax([self.fitness(weights) for weights in self.population])]
-        for i, param in enumerate(self.model.parameters()):
-            param.data = torch.Tensor(best_weights[i])
+    def mutate(self, child):
+        for i in range(len(child)):
+            if np.random.uniform(0, 1) < self.mutation_rate:
+                child[i] += np.random.normal(0, 0.1, child[i].shape)
+        return child
 
-x_chain , x_test , y_chain , y_test = fx()
-ACO = ACO(model, no_ants =50, epochs = 125  , rate_of_decay = 0.06 , inputs = x_chain, labels = y_chain)
-
-def chain(num_epochs):
-    loss_list = []
-    with tf.device('/gpu:0'):
-        for epoch in range(num_epochs):
-            cO.generate_offspring([])
-            cO.update_weight()
-            outputs = model(x_chain)
-            loss = loss_fx(outputs, y_chain.reshape([len(x_chain) , 1]).float())
-            loss_list.append(loss.item())
-            loss.backward()
-            cO.generate_offspring([])
-            cO.update_weight()
-
-            if (!(epoch%15)):
-                print("for epoch" , epoch , " , loss item :  " , loss.item());
-                cO.decay_mutation_rate()
-
-    return loss_list
+    def generate_offspring(self, fitness_scores):
+        new_population = []
+        for _ in range(self.population_size):
+            parent1_index = self.selection(fitness_scores)
+            parent2_index = self.selection(fitness_scores)
+            parent1 = self.population[parent1_index]
+            parent2 = self.population[parent2_index]
+            child1, child2 = self.crossover(parent1, parent2)
+            child1 = self.mutate(child1)
