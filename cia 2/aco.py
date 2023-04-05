@@ -17,9 +17,9 @@ def function():
 class NN(tr.nn.Module):
     def __init__(self):
         super().__init__()
-        self.linear1 = tr.nn.Linear(12, 10)
-        self.linear2 = tr.nn.Linear(10, 20)
-        self.linear3 = tr.nn.Linear(20 , 1)
+        self.linear1 = tr.nn.Linear(15, 8)
+        self.linear2 = tr.nn.Linear(20, 12)
+        self.linear3 = tr.nn.Linear(12 , 11)
         self.relu = tr.nn.ReLU()
         self.sigmoid = tr.nn.Sigmoid()
 
@@ -35,25 +35,62 @@ class NN(tr.nn.Module):
 model = NN()
 loss_function = tr.nn.MSELoss()
 
-class AntColonyOptimizer:
-    def _init_(self, num_of_ants, epochs,   initial_pheremone, decay_rate , size  , inputs , labels):
-        self.num_of_ants = num_of_ants
-        self.epochs = epochs
-        self.initial_pheremone = initial_pheremone
-        self.decay_rate = decay_rate
-        self.size = size
-        self.pheromone = np.full((2, self.size, 1), self.pheromone_init)
+class CulturalOptimizer:
+    def __init__(self, model, population_size, mutation , decay ,  inputs  , labels):
+        self.model = model
+        self.population_size = population_size
+        self.mutation = mutation
+        self.population = self.init_population()
+        self.decay = decay
         self.inputs = inputs
         self.labels = labels
-        
-    def fun(self, self.inputs , self.labels):
-        w = np.zeros((self.inputs, self.labels))
-        for i in range(inputs):
-            for j in range(output):
-                prob = self.get_transition_prob(i, j)
-                w[i][j] = np.random.normal(loc=prob, scale=0.5)
-        return w
+        self.culture = None
+
+    def init_population(self):
+        population = []
+        for i in range(self.population_size):
+            weights = []
+            for weight in self.model.parameters():
+                weights.append(weight.data.numpy())
+            population.append(weights)
+        return population
+
+    def selection(self, fitness_scores):
+        cumulative_scores = np.cumsum(fitness_scores)
+        total_score = np.sum(fitness_scores)
+        rand = np.random.uniform(0, total_score)
+        selected_index = np.searchsorted(cumulative_scores, rand)
+        return selected_index
+
+    def crossover(self, male, female):
+        random_crossover = np.random.randint(1, len(male))
+        child1 = female[:random_crossover] + male[random_crossover:]
+        child2 = female[:random_crossover] + male[random_crossover:]
+        return child1, child2
     
+    def decay_mutation_rate(self):
+        self.mutation -= (self.decay*self.mutation)
+
+    def mutate(self, child):
+        for i in range(len(child)):
+            if np.random.uniform(0, 1) < self.mutation:
+                child[i] += np.random.normal(0, 0.1, child[i].shape)
+        return child
+
+    def generate_offspring(self, fitness_scores):
+        new_population = []
+        for _ in range(self.population_size):
+            parent1_index = self.selection(fitness_scores)
+            parent2_index = self.selection(fitness_scores)
+            parent1 = self.population[parent1_index]
+            parent2 = self.population[parent2_index]
+            child1, child2 = self.crossover(parent1, parent2)
+            child1 = self.mutate(child1)
+            child2 = self.mutate(child2)
+            new_population.append(child1)
+            new_population.append(child2)
+        self.population = new_population
+
     def update_weight(self):
         fitness_scores = [self.fitness(weights) for weights in self.population]
         best_index = np.argmax(fitness_scores)
@@ -61,8 +98,16 @@ class AntColonyOptimizer:
         for i, param in enumerate(self.model.parameters()):
             param.data = torch.Tensor(best_weights[i])
 
+    def fitness(self, weights):
+        if (self.culture == None):
+            for i, param in enumerate(self.model.parameters()):
+                param.data = torch.Tensor(weights[i])
+            outputs = self.model(self.inputs)
+            loss = loss_function(outputs.float(), self.labels.reshape([len(self.inputs) , 1]).float())
+            return 1 / (loss.item() + 1e-6)
+
 x_train , x_test , y_train , y_test = function()
-antcolonyoptimizer = AntColonyOptimizer(model, num_of_ants =20, epochs = 100  , decay_rate = 0.05 , inputs = x_train, labels = y_train)
+culturalOptimizer = CulturalOptimizer(model, population_size=20, mutation=0.3  , decay = 0.05 , inputs = x_train, labels = y_train)
 
 def train(num_epochs):
     loss_list = []
